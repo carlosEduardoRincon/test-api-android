@@ -1,4 +1,4 @@
 <resources>
     <string name="app_name">ExemploServices</string>
-    <string name="campoPesquisa">Type the text</string>
+    <string name="campoPesquisa">Digite o nome do personagem:</string>
 </resources>

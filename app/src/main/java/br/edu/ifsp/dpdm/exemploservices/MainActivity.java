@@ -1,137 +1,120 @@
 package br.edu.ifsp.dpdm.exemploservices;
 
-import androidx.appcompat.app.AppCompatActivity;
-
 import android.app.ProgressDialog;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import org.json.JSONException;
+import androidx.appcompat.app.AppCompatActivity;
+
+import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
+
+import br.edu.ifsp.dpdm.exemploservices.modelo.DisneyCharacter;
 
 public class MainActivity extends AppCompatActivity {
 
-    private MinionService ps;
-    private EditText initialText;
-    private TextView translatedText;
-    private String translated;
+
+    private EditText edNomePesonagem;
+    private TextView txtDadosPersonagem;
+    private DisneyCharacter character;
+    private ImageView imgPersonagem;
     private ProgressDialog load;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.pokemon);
-        initialText = (EditText) findViewById(R.id.edNomePokemon);
-        translatedText = (TextView) findViewById(R.id.txtDadosPokemon);
+        setContentView(R.layout.personagem);
+        edNomePesonagem = (EditText) findViewById(R.id.edNomePesonagem);
+        txtDadosPersonagem = (TextView) findViewById(R.id.txtDadosPersonagem);
+        imgPersonagem = (ImageView) findViewById(R.id.imgPersonagem);
     }
 
     public void pesquisar(View v) {
-        ps = new MinionService();
-        ps.execute(initialText.getText().toString());
+        new FetchCharacterTask().execute(edNomePesonagem.getText().toString());
     }
 
-    private class MinionService extends AsyncTask<String, Void, String> {
+    public class FetchCharacterTask extends AsyncTask<String, Void, DisneyCharacter> {
+        private static final String TAG = "FetchPCharacterTask";
 
-
-        @Override
         protected void onPreExecute() {
             load = ProgressDialog.show(MainActivity.this, "Por favor Aguarde ...",
                     "Procurando Dados ...");
         }
 
         @Override
-        protected String doInBackground(String... params) {
+        protected DisneyCharacter doInBackground(String... params) {
 
-            HttpURLConnection urlConnection = null;
-            BufferedReader reader = null;
+            String nomePersonagem = params[0].toLowerCase();
+            String urlString = "https://api.disneyapi.dev/character?name=" + nomePersonagem;
             try {
-
-                String initialString = params[0].toLowerCase();
-                URL url = new URL("https://api.funtranslations.com/translate/minion.json?text="+initialString);
-
-                urlConnection = (HttpURLConnection) url.openConnection();
-                urlConnection.setRequestMethod("GET");
-                urlConnection.connect();
-
-                InputStream inputStream = urlConnection.getInputStream();
-
-                reader = new BufferedReader(new InputStreamReader(inputStream));
-
-
-                String linha;
-                StringBuffer buffer = new StringBuffer();
-                while((linha = reader.readLine()) != null) {
-                    buffer.append(linha);
-                    buffer.append("\n");
-                }
-                translated = convertJsonToObject(buffer.toString());
-
-                return translated;
+                String jsonString = HttpUtils.get(urlString);
+                JSONObject jsonObject = new JSONObject(jsonString);
+                JSONObject data = jsonObject.getJSONArray("data").getJSONObject(0);
+                return new DisneyCharacter(data);
             } catch (Exception e) {
-                e.printStackTrace();
-                if (urlConnection != null) {
-                    urlConnection.disconnect();
-                }
-
-                if (reader != null) {
-                    try {
-                        reader.close();
-                    } catch (IOException e1) {
-                        e1.printStackTrace();
-                    }
-                }
+                Log.e(TAG, "Erro na requisição: ", e);
+                return null;
             }
-
-            return null;
         }
 
-
-
         @Override
-        protected void onPostExecute(String dados) {
-            if(dados !=null)
+        protected void onPostExecute(DisneyCharacter disneyCharacter) {
+
+            if(disneyCharacter !=null)
             {
-                Toast.makeText(MainActivity.this,String.valueOf(dados),Toast.LENGTH_LONG).show();
-                translatedText.setText(dados);
+                Toast.makeText(MainActivity.this,String.valueOf(disneyCharacter.getNome()),Toast.LENGTH_LONG).show();
+                txtDadosPersonagem.setText(disneyCharacter.getNome());
+                if(disneyCharacter.getImage()!=null)
+                {
+                    new DownloadImageTask(imgPersonagem)
+                            .execute(disneyCharacter.getImage());
+                }
+
             }
+            else {
+                Toast.makeText(MainActivity.this,"Nenhum personagem encontrado!",Toast.LENGTH_LONG).show();
+                txtDadosPersonagem.setText("");
+                imgPersonagem.setImageDrawable(null);
+            }
+
+
 
             load.dismiss();
         }
     }
 
+    private class DownloadImageTask extends AsyncTask<String, Void, Bitmap> {
+        ImageView bmImage;
 
-    public String convertJsonToObject(String dados)
-    {
-        String translated = null;
-
-        try {
-
-            JSONObject jsonObj = new JSONObject(dados);
-            if(jsonObj !=null)
-            {
-                JSONObject contents = jsonObj.getJSONObject("contents");
-                translated = contents.getString("translated");
-            }
-            else {
-                translated = null;
-            }
-
-        } catch (JSONException e) {
-            throw new RuntimeException(e);
+        public DownloadImageTask(ImageView bmImage) {
+            this.bmImage = bmImage;
         }
 
-        return translated;
+        protected Bitmap doInBackground(String... urls) {
+            String urldisplay = urls[0];
+            Bitmap mIcon11 = null;
+            try {
+                InputStream in = new java.net.URL(urldisplay).openStream();
+                mIcon11 = BitmapFactory.decodeStream(in);
+            } catch (Exception e) {
+                Log.e("Error", e.getMessage());
+                e.printStackTrace();
+            }
+            return mIcon11;
+        }
 
+        protected void onPostExecute(Bitmap result) {
+            bmImage.setImageBitmap(result);
+        }
     }
 }
